@@ -20,7 +20,7 @@ This was used to help create [San Antonio Remix v2.0.1](https://github.com/OhTho
 
 ### Example
 <figure>
-    <img src="mewtwoarmorexample.webp" alt="run command -> paste into RAM -> direct pointers">
+    <img src="mewtwoarmorexample.webp" alt="run command -> paste into RAM -> direct pointers"> <br>
     <figcaption> This shows me running the program, pasting the output into RAM space for Smash Remix at 0x80700000, and then using a F3DEX2 jump command from Mewtwo's head to 0x80700E40 (first display list from output that I highlight) to show the new converted model I just pasted. </figcaption>
 </figure>
 

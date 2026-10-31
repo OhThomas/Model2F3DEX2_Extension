@@ -1,8 +1,8 @@
 <div align="center">
 
 # Model2F3DEX2_Extension
-Modifies F3DEX2 data to add extra features like environmental sheen, transparency, backface culling, etc. <br>
-Also fixes problems with Model2F3DEX2 like vertice coloring, mesh linking, and blank FA commands while copying the output to the clipboard automatically.
+Fixes problems with [Model2F3DEX2](http://n64vault.com/ssb-tools:model2f3dex-ssb) like vertice coloring, mesh linking, and blank FA commands while copying the output to the clipboard automatically. <br>
+Also modifies F3DEX2 data to add extra features like environmental sheen, transparency, backface culling, etc.
 
 This was used to help create [San Antonio Remix v2.0.1](https://github.com/OhThomas/smashremix/releases/tag/Latest)
 
@@ -35,8 +35,10 @@ This was used to help create [San Antonio Remix v2.0.1](https://github.com/OhTho
 | -sheen | Adds environmental sheen to specific mesh parts in the OBJ file, enter 'all' or '0,2,3' depending on mesh part order.|
 | -transparency | Adds transparency to specific mesh parts in the OBJ file by replacing first palette with 0000, enter 'all' or '0,2,3' depending on mesh part order.|
 | -sheen_command | Commands to replace sheen with, will either replace these commands if they're already in the mesh part or add them, ex: 'D9FFFFFF00040001,F54004000001066C,D700000207FF07FF' (comma seperated).|
-| -trans_command | Commands to replace transparency with, will either replace these commands if they're already in the mesh part or add them, ex: 'E300100100008000,FCFFFFFFFFFCF279,E200001C00507078' (comma seperated).|
+| -trans_command | Commands to replace transparency with, will either replace these commands if they're already in the mesh part or add them, ex: 'E300100100008000,FC121805FF17FFFF,E200001CC4113878' (comma seperated).|
 | -no_mtl | Prevents changing Ka/Kd commands in MTL file (Ka blocks Kd command for Model2F3DEX2 which is needed for primitive coloring).|
+| -no_color | Prevents changing color to linear in MTL file.|
+| -no_fa | Prevents changing FA commands.|
 | -debug | Prints debugging messages to output.|
 | -no_copy | Prevents copying output to clipboard.|
 | -output | Output file.|

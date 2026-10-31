@@ -11,6 +11,7 @@
 
 import pyclip
 import os
+import shutil
 import subprocess
 import argparse
 import binascii
@@ -25,8 +26,10 @@ parser.add_argument("-backface_culling","--backface_culling",default="",help="Ad
 parser.add_argument("-sheen","--sheen","-env_sheen","--env_sheen",default="",help="Adds environmental sheen with sheen_command. Enter 'all' or which parts will receive the sheen seperated by commas, ex: '0,2,3,4'")
 parser.add_argument("-trans","--trans","-transparency","--transparency",default="",help="Adds transparency to texture. Enter 'all' or which parts will receive the transparency seperated by commas, ex: '0,2,3,4'")
 parser.add_argument("-sheen_command","--sheen_command","-env_sheen_command","--env_sheen_command","-shine","--shine",default="D9FFFFFF00040001,F54004000001066C,D700000207FF07FF",help="Commands to replace to apply sheen with (first 3 digits determine command, comma seperated). Default is D9FFFFFF00040001,F54004000001066C,D700000207FF07FF")
-parser.add_argument("-trans_command","--trans_command","-transparency_command","--transparency_command",default="E300100100008000,FCFFFFFFFFFCF279,E200001C00507078",help="Commands to replace to apply shine with (first 3 digits determine command, comma seperated). Default is D9FFFFFF00040001,F54004000001066C,D700000207FF07FF")
+parser.add_argument("-trans_command","--trans_command","-transparency_command","--transparency_command",default="E300100100008000,FC121805FF17FFFF,E200001CC4113878",help="Commands to replace to apply shine with (first 3 digits determine command, comma seperated). Default is E300100100008000,FC121805FF17FFFF,E200001CC4113878")
 parser.add_argument("-no_mtl","--no_mtl",action="store_true",help="Doesn't change Ka/Kd commands in mtl file (Ka blocks Kd command for Model2F3DEX2-SSB which is needed for primitive coloring).")
+parser.add_argument("-no_color_convert","--no_color_convert",action="store_true",help="Doesn't convert Kd command to linear coloring in mtl file.")
+parser.add_argument("-no_fa","--no_fa",action="store_true",help="Doesn't change FA commands to FA000000FFFFFFFF.")
 parser.add_argument("-debug","--debug",action="store_true",help="Prints debugging messages.")
 parser.add_argument("-no_copy","--no_copy",action="store_true",help="Doesn't copy output to clipboard.")
 parser.add_argument("-o","--o","-output","--output",default="m2f3_output.bin",type=str,help="Output file.")
@@ -51,26 +54,27 @@ backface_command = "D9FFFBFF00000000"
 backface_end_command = "D9FFFFFF00000400"
 sheen_end_command = "D9FBFFFF00000000"
 
-# Converts linear to sRGB
-def lin_to_srgb(l):
+# Converts sRGB to linear
+def srgb_to_lin(l):
     return 12.92 * l if l <= 0.0031308 else 1.055 * l ** (1 / 2.4) - 0.055
 
-# Converts Kd command to sRGB from MTL file
+# Converts Kd command to linear from MTL file
 def fix_kd(line):
     srgb_string = "#srgb"
     parts = line.split()
     if parts and parts[0] == "Kd" and parts[-1] != srgb_string:
-        r, g, b = (lin_to_srgb(float(x)) for x in parts[1:4])
+        r, g, b = (srgb_to_lin(float(x)) for x in parts[1:4])
         return f"Kd {r:.6f} {g:.6f} {b:.6f} {srgb_string}\n"
     return line
 
-def mtl_change(file_path):
+def mtl_change(file_path,no_color_convert=False):
     """
-    Removes Ka commands and modifies Kd commands to be sRGB in an MTL file for primitive coloring.
+    Removes Ka commands and modifies Kd commands to be linear in an MTL file for primitive coloring.
     Only removes Ka commands that are followed by a Kd command.
 
     Args:
         file_path (str): Source file.
+        no_color_convert (bool): Converts color to linear.
 
     Returns:
         (none)
@@ -100,7 +104,8 @@ def mtl_change(file_path):
                     if args.debug:
                         print(f"kd found at line {line.decode()}")
                     fw.seek(current_ka_loc)
-                    line = str(fix_kd(line.decode())).encode()
+                    if not no_color_convert:
+                        line = str(fix_kd(line.decode())).encode()
                     if args.debug:
                         print(f"kd conversion = {line.decode()}")
 
@@ -108,6 +113,9 @@ def mtl_change(file_path):
                 fw.write(line)
                 lines.append(line)
             fw.truncate()
+        # Backing up MTL file
+        if not os.path.isfile(file_path+".bak"):
+            shutil.copy(file_path,file_path+".bak")
         os.replace(temp_file,file_path)
     except FileNotFoundError:
         print(f"Error: File not found at {file_path}")
@@ -137,7 +145,7 @@ try:
 
     if not args.no_mtl:
         mtl_path = os.path.splitext(source_path)[0] + ".mtl"
-        mtl_change(mtl_path)
+        mtl_change(mtl_path,args.no_color_convert)
 except FileNotFoundError as e:
     print(f"{e}")
     exit(1)
@@ -371,7 +379,8 @@ def d9_check(command,old_command):
         d9_new_msb = "{:08x}".format(int(d9_current_msb,16) | int(d9_com_msb,16))
         d9_new_lsb = "{:06x}".format(int(d9_current_lsb,16) & int(d9_com_lsb,16))
         command = "D9"+d9_new_lsb+d9_new_msb
-        print(f"d9_msb = {d9_new_msb} d9_lsb = {d9_new_lsb} command = {command}")
+        if args.debug:
+            print(f"d9_msb = {d9_new_msb} d9_lsb = {d9_new_lsb} command = {command}")
     return command
 
 def command_list_check(parts_number,parts_list,command_list,fa_loc,loc_offset): 
@@ -388,7 +397,7 @@ def command_list_check(parts_number,parts_list,command_list,fa_loc,loc_offset):
         loc_offset(str): fa_loc + offset of the RAM address we're adding this file to.
 
     Returns:
-        str: D9 command that's either combined with the old command or just the new one.
+        None
     """
     if str(parts_number) in parts_list or parts_list[0] == "all":
         for command in command_list:
@@ -428,7 +437,7 @@ def add_command(destination_path,parts_list,beginning_pattern,ending_pattern,com
         end_command (str): What we add to end the command with.
 
     Returns:
-        (none)
+        None
 
     TODO: 
         - update_pointer_data needs the hex amount of what command we're adding incase
@@ -485,7 +494,7 @@ def get_commands(destination_path,parts_list,beginning_pattern,ending_pattern,co
         command (str): What we're looking for.
 
     Returns:
-        (list of str,str): Locations of the commands found; The command found from pattern.
+        list of str,str: Locations of the commands found; The command found from pattern.
     """
     # Setting variables
     return_list = []
@@ -549,15 +558,16 @@ except Exception as e:
 print(f"output: \n{output}")
 
 # Replacing FA commands
-fa_com = ""
-fa_loc = "0x0"
-fa_loc,fa_com = find_pattern(destination_path,fa_loc,fa_pattern)
-while fa_com != -1:
-    print(f"{fa_loc}: changing from FA000000 000000FF to FA000000 FFFFFFFF")
-    write_hex_from_offset(destination_path,fa_loc,"FA000000FFFFFFFF")
-    # Finding FA command location
-    fa_loc = hex(int(fa_loc, 16) + 8)
+if not args.no_fa:
+    fa_com = ""
+    fa_loc = "0x0"
     fa_loc,fa_com = find_pattern(destination_path,fa_loc,fa_pattern)
+    while fa_com != -1:
+        print(f"{fa_loc}: changing from FA000000 000000FF to FA000000 FFFFFFFF")
+        write_hex_from_offset(destination_path,fa_loc,"FA000000FFFFFFFF")
+        # Finding FA command location
+        fa_loc = hex(int(fa_loc, 16) + 8)
+        fa_loc,fa_com = find_pattern(destination_path,fa_loc,fa_pattern)
 
 # Replacing DF commands
 fa_com = ""
